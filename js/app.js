@@ -475,6 +475,117 @@ function updateSearchDropdown() {
 }
 
 /* =========================================================
+   SMART SHOE IMAGE BACKGROUND MATCHER
+   Samples edge & corner pixels of any sneaker photo.
+   Seamlessly matches card stage & modal backgrounds to eliminate
+   awkward boxes and borders.
+   ========================================================= */
+const _shoeBgCache = new Map();
+
+function detectAndMatchImageBg(imgEl) {
+  if (!imgEl || !imgEl.src) return;
+  const src = imgEl.src;
+
+  const applyColors = (res) => {
+    if (!res) return;
+    const sliderItem = imgEl.closest('.card-slider-item');
+    const stage = imgEl.closest('.product-img-stage');
+    const modalArea = imgEl.closest('.modal-image-area') || document.getElementById('modalImageArea');
+
+    if (res.isTransparent) {
+      if (sliderItem) sliderItem.style.setProperty('background-color', '#ffffff', 'important');
+      if (stage) stage.style.setProperty('background-color', '#ffffff', 'important');
+      if (modalArea) modalArea.style.setProperty('background-color', '#ffffff', 'important');
+      imgEl.classList.remove('is-opaque-color');
+      imgEl.classList.add('is-transparent');
+    } else {
+      imgEl.classList.remove('is-transparent');
+      if (res.isNearWhite) {
+        // Pure or near-white (>= 242): keep stage crisp white & multiply blend
+        if (sliderItem) sliderItem.style.setProperty('background-color', '#ffffff', 'important');
+        if (stage) stage.style.setProperty('background-color', '#ffffff', 'important');
+        if (modalArea) modalArea.style.setProperty('background-color', '#ffffff', 'important');
+        imgEl.classList.remove('is-opaque-color');
+      } else {
+        // Off-white / colored / grey / dark background: match stage exactly
+        if (sliderItem) sliderItem.style.setProperty('background-color', res.color, 'important');
+        if (stage) stage.style.setProperty('background-color', res.color, 'important');
+        if (modalArea) modalArea.style.setProperty('background-color', res.color, 'important');
+        imgEl.classList.add('is-opaque-color');
+      }
+    }
+  };
+
+  if (_shoeBgCache.has(src)) {
+    applyColors(_shoeBgCache.get(src));
+    return;
+  }
+
+  const analyze = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      const w = 24;
+      const h = 24;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(imgEl, 0, 0, w, h);
+
+      const sampleCoords = [
+        [0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1],
+        [Math.floor(w / 2), 0], [Math.floor(w / 2), h - 1],
+        [0, Math.floor(h / 2)], [w - 1, Math.floor(h / 2)],
+        [2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3]
+      ];
+
+      let transparentCount = 0;
+      let rSum = 0, gSum = 0, bSum = 0, validCount = 0;
+
+      for (const [x, y] of sampleCoords) {
+        const p = ctx.getImageData(x, y, 1, 1).data;
+        if (p[3] < 30) {
+          transparentCount++;
+        } else {
+          rSum += p[0];
+          gSum += p[1];
+          bSum += p[2];
+          validCount++;
+        }
+      }
+
+      let res;
+      if (transparentCount >= 6 || validCount === 0) {
+        res = { isTransparent: true, color: '#ffffff', isNearWhite: true };
+      } else {
+        const r = Math.round(rSum / validCount);
+        const g = Math.round(gSum / validCount);
+        const b = Math.round(bSum / validCount);
+        const isNearWhite = r >= 242 && g >= 242 && b >= 242;
+        res = {
+          isTransparent: false,
+          color: `rgb(${r}, ${g}, ${b})`,
+          isNearWhite,
+          rgb: [r, g, b]
+        };
+      }
+
+      _shoeBgCache.set(src, res);
+      applyColors(res);
+    } catch (_) {
+      const fallback = { isTransparent: false, color: '#ffffff', isNearWhite: true };
+      _shoeBgCache.set(src, fallback);
+      applyColors(fallback);
+    }
+  };
+
+  if (imgEl.complete && imgEl.naturalWidth > 0) {
+    analyze();
+  } else {
+    imgEl.addEventListener('load', analyze, { once: true });
+  }
+}
+
+/* =========================================================
    PRODUCT GRID RENDER (STUDIO SHOWCASE + MULTI-PHOTO CAROUSEL)
    ========================================================= */
 function renderProductGrid() {
@@ -516,6 +627,14 @@ function renderProductGrid() {
   grid.innerHTML = state.filteredProducts.map(shoe => buildProductCard(shoe)).join('');
 
   initRevealObserver();
+
+  requestAnimationFrame(() => {
+    grid.querySelectorAll('.card-slider-item img').forEach(img => {
+      if (img.complete && img.naturalWidth > 0) {
+        detectAndMatchImageBg(img);
+      }
+    });
+  });
 }
 
 function buildProductCard(shoe) {
@@ -537,7 +656,7 @@ function buildProductCard(shoe) {
   // Multi-photo slider items
   const sliderItemsHtml = images.map((img, i) => `
     <div class="card-slider-item">
-      <img src="${img}" alt="${escAttr(name)} Angle ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}" decoding="async">
+      <img src="${img}" alt="${escAttr(name)} Angle ${i + 1}" loading="${i === 0 ? 'eager' : 'lazy'}" decoding="async" onload="detectAndMatchImageBg(this)">
     </div>
   `).join('');
 
@@ -685,6 +804,10 @@ function updateCardSlider(shoeId, total) {
     card.querySelectorAll('.card-dot').forEach((dot, i) => {
       dot.classList.toggle('active', i === idx);
     });
+    const imgs = card.querySelectorAll('.card-slider-item img');
+    if (imgs[idx]) {
+      detectAndMatchImageBg(imgs[idx]);
+    }
   }
 }
 
@@ -921,8 +1044,8 @@ function renderProductModal() {
   if (!modalContent) return;
 
   modalContent.innerHTML = `
-    <div class="modal-image-area" style="background:#ffffff; border-radius:18px; padding:20px; display:flex; align-items:center; justify-content:center;">
-      <img src="${images[idx]}" alt="${escAttr(name)}" id="modalMainImg" decoding="async" style="max-height:90%; max-width:90%; object-fit:contain; mix-blend-mode:multiply; filter:drop-shadow(0 14px 20px rgba(0,0,0,0.18));">
+    <div class="modal-image-area" id="modalImageArea" style="background:#ffffff; border-radius:18px; padding:20px; display:flex; align-items:center; justify-content:center; transition:background-color 0.35s ease;">
+      <img src="${images[idx]}" alt="${escAttr(name)}" id="modalMainImg" decoding="async" onload="detectAndMatchImageBg(this)" style="max-height:90%; max-width:90%; object-fit:contain; mix-blend-mode:multiply; filter:none;">
       ${total > 1 ? `
         <button class="modal-arrow modal-arrow-left" onclick="stepModalImage(-1)">‹</button>
         <button class="modal-arrow modal-arrow-right" onclick="stepModalImage(1)">›</button>

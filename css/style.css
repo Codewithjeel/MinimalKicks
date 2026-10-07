@@ -2241,7 +2241,7 @@ mix-blend-mode:multiply;
 
 .product-img-stage {
   position: relative !important;
-  background: #ffffff !important;
+  background: #ffffff;
   border-radius: 16px !important;
   margin: 12px 12px 10px 12px !important;
   height: 250px !important;
@@ -2251,6 +2251,7 @@ mix-blend-mode:multiply;
   overflow: hidden !important;
   cursor: pointer !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  transition: background-color 0.35s ease, transform 0.3s ease !important;
 }
 
 .product-img-stage img {
@@ -2258,8 +2259,8 @@ mix-blend-mode:multiply;
   max-width: 88% !important;
   object-fit: contain !important;
   display: block !important;
-  mix-blend-mode: multiply !important;
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.12)) !important;
+  mix-blend-mode: multiply;
+  filter: none !important;
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
@@ -2283,7 +2284,7 @@ mix-blend-mode:multiply;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: #ffffff !important;
+  background: transparent !important;
   overflow: hidden !important;
 }
 
@@ -2292,8 +2293,24 @@ mix-blend-mode:multiply;
   max-width: 88% !important;
   object-fit: contain !important;
   display: block !important;
-  mix-blend-mode: multiply !important;
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.12)) !important;
+  mix-blend-mode: multiply;
+  filter: none !important;
+}
+
+/* Opaque custom background detected from shoe photo */
+.card-slider-item img.is-opaque-color,
+.product-img-stage img.is-opaque-color,
+#modalMainImg.is-opaque-color {
+  mix-blend-mode: normal !important;
+  filter: none !important;
+}
+
+/* Transparent cutout PNG */
+.card-slider-item img.is-transparent,
+.product-img-stage img.is-transparent,
+#modalMainImg.is-transparent {
+  mix-blend-mode: normal !important;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.14)) !important;
 }
 
 .card-slider-arrow {
