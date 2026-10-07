@@ -526,10 +526,7 @@ function buildProductCard(shoe) {
   const name = shoe.name || shoe.title || 'Sneaker';
   const brand = shoe.brand || 'MinimalKicks';
   const price = Number(shoe.price) || 2999;
-  const mrp = Number(shoe.mrp) || Math.round(price * 1.8);
-  const discountPct = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
   const isGirls = shoe.girls_collection === true || shoe.girls_collection === 1 || shoe.girls_collection === '1';
-  const isTrending = /samba|dunk|jordan|9060|boston|cloud|tiger|blazer|gazelle|campus/i.test(name) || discountPct >= 35;
 
   const defaultSizes = isGirls
     ? ['UK 3', 'UK 4', 'UK 5', 'UK 6', 'UK 7']
@@ -600,8 +597,6 @@ function buildProductCard(shoe) {
         ontouchend="handleCardTouchEnd(event,'${shoe.id}')"
         onclick="openProductModal('${shoe.id}')">
         
-        ${isTrending ? `<span class="trending-badge"><i class="fa-solid fa-fire"></i> Trending</span>` : ''}
-
         <div class="card-slider-track" id="slider-track-${shoe.id}" style="transform:translateX(-${currentIdx * 100}%);">
           ${sliderItemsHtml}
         </div>
@@ -614,20 +609,15 @@ function buildProductCard(shoe) {
       <!-- Sneaker Title -->
       <h3 class="card-title" title="${escAttr(name)}" onclick="openProductModal('${shoe.id}')" style="cursor:pointer;">${escHtml(name)}</h3>
 
-      <!-- Price & Discount -->
+      <!-- Price -->
       <div class="product-price-row">
-        <span class="price-current">₹${price.toLocaleString('en-IN')}</span>
-        ${discountPct > 0 ? `
-          <span class="price-mrp">₹${mrp.toLocaleString('en-IN')}</span>
-          <span class="discount-pill">${discountPct}% OFF</span>
-        ` : ''}
+        <span class="price-current"><span style="font-size:12px; font-weight:700; color:var(--color-text-faint); margin-right:5px; text-transform:uppercase; letter-spacing:0.04em;">MRP</span>₹${price.toLocaleString('en-IN')}</span>
       </div>
 
       <!-- Compact Size Selector -->
       <div class="sizes-container">
         <div class="sizes-header">
           <span>Select UK Size:</span>
-          <span class="sizes-guide-btn" onclick="openSizeChartModal()">Size Guide</span>
         </div>
         <div class="sizes-scroll-row" id="sizes-row-${shoe.id}">
           ${sizePillsHtml}
@@ -921,8 +911,6 @@ function renderProductModal() {
   const idx = state.modalImageIndex;
   const name = shoe.name || shoe.title || '';
   const price = Number(shoe.price) || 2999;
-  const mrp = Number(shoe.mrp) || Math.round(price * 1.8);
-  const discountPct = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
   const isGirls = shoe.girls_collection === true || shoe.girls_collection === 1 || shoe.girls_collection === '1';
 
   const defaultSizes = isGirls ? ['UK 3', 'UK 4', 'UK 5', 'UK 6', 'UK 7'] : ['UK 7', 'UK 8', 'UK 9', 'UK 10', 'UK 11'];
@@ -953,17 +941,12 @@ function renderProductModal() {
       ${shoe.description && !shoe.description.includes('Master edition') ? `<p class="modal-desc">${escHtml(shoe.description)}</p>` : ''}
       
       <div style="display:flex; align-items:baseline; gap:10px; margin:4px 0;">
-        <span style="font-size:1.6rem; font-weight:800; font-family:var(--font-display);">₹${price.toLocaleString('en-IN')}</span>
-        ${discountPct > 0 ? `
-          <span style="font-size:14px; color:var(--color-text-faint); text-decoration:line-through;">₹${mrp.toLocaleString('en-IN')}</span>
-          <span class="discount-pill">${discountPct}% OFF</span>
-        ` : ''}
+        <span style="font-size:1.6rem; font-weight:800; font-family:var(--font-display);"><span style="font-size:13px; font-weight:700; color:var(--color-text-faint); margin-right:5px; text-transform:uppercase; letter-spacing:0.04em;">MRP</span>₹${price.toLocaleString('en-IN')}</span>
       </div>
 
       <div style="margin:8px 0;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted);">Select UK Size:</span>
-          <span onclick="openSizeChartModal()" style="font-size:11px; color:var(--color-primary); cursor:pointer; text-decoration:underline;">View Size Chart</span>
         </div>
         <div class="modal-sizes">
           ${sizes.map(sz => `<span class="size-chip ${selectedSize === sz ? 'active' : ''}" data-size="${escAttr(sz)}" onclick="selectModalSize('${shoe.id}','${escAttr(sz)}')">${escHtml(sz)}</span>`).join('')}
@@ -1276,7 +1259,7 @@ function closeAddProductModal() {
 }
 
 function clearProductForm() {
-  ['productName', 'productPrice', 'productMrp', 'productDescription'].forEach(id => {
+  ['productName', 'productPrice', 'productDescription'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -1480,13 +1463,13 @@ async function handleSaveProduct() {
   const name = (document.getElementById('productName')?.value || '').trim();
   const brand = (document.getElementById('productBrand')?.value || '').trim();
   const price = Number(document.getElementById('productPrice')?.value || 0);
-  const mrp = Number(document.getElementById('productMrp')?.value || price * 1.8);
+  const mrp = Number(document.getElementById('productMrp')?.value || price);
   const category = (document.getElementById('productCategory')?.value || 'Sneakers').trim();
   const description = (document.getElementById('productDescription')?.value || '').trim();
   const isGirls = document.getElementById('girlsCollection')?.checked || false;
 
   if (!name || !brand || !price) {
-    showToast('Name, brand, and offer price are required.', 'error');
+    showToast('Name, brand, and price are required.', 'error');
     return;
   }
 
