@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MinimalKicks | Premium Sneakers &amp; Streetwear Collection India</title>
+
+    <meta name="description" content="Shop premium streetwear sneakers inspired by global fashion. High-quality lifestyle footwear with fast WhatsApp ordering and delivery across India.">
+    <meta name="keywords" content="premium sneakers, streetwear sneakers, lifestyle footwear, casual shoes, MinimalKicks, WhatsApp shoe store">
+    <meta name="robots" content="index, follow">
+
+    <!-- FontAwesome 6 Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+    <!-- Google Fonts & Clash Display -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="canonical" href="https://minimalkicks.netlify.app/">
+
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <meta name="theme-color" content="#000000">
+    <meta name="author" content="MinimalKicks">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="MinimalKicks | Premium Sneakers">
+    <meta property="og:description" content="Premium streetwear sneakers with fast WhatsApp ordering across India.">
+    <meta property="og:url" content="https://minimalkicks.netlify.app/">
+    <meta property="og:image" content="https://minimalkicks.netlify.app/preview.jpg">
+
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+    <script type="application/ld+json">
+    {
+      "@context":"https://schema.org",
+      "@type":"Store",
+      "name":"MinimalKicks",
+      "url":"https://minimalkicks.netlify.app/",
+      "logo":"https://minimalkicks.netlify.app/MINIMAL.PNG",
+      "telephone":"+91 7779012100",
+      "address":{
+        "@type":"PostalAddress",
+        "addressCountry":"IN"
+      }
+    }
+    </script>
+</head>
+
+<body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <!-- ===================== ADMIN CONTROL BAR (Visible ONLY when Admin is active) ===================== -->
+    <div id="adminBar" class="hidden admin-top-bar" style="display: none;">
+        <div class="admin-bar-inner">
+            <div class="admin-bar-left">
+                <span class="admin-pulse-dot" title="Live Store Active"></span>
+                <span class="admin-badge">Admin Mode</span>
+                <span class="admin-bar-label" id="adminBarStats">MinimalKicks Store Manager</span>
+            </div>
+            <div class="admin-bar-right">
+                <button class="admin-btn admin-btn-primary" onclick="openAddProductModal()">
+                    <i class="fa-solid fa-plus"></i> + Upload Sneaker (Multi-Photo)
+                </button>
+                <button class="admin-btn" onclick="openBrandsModal()">
+                    <i class="fa-solid fa-tags"></i> Manage Brands
+                </button>
+                <button class="admin-btn" onclick="openSettingsModal()">
+                    <i class="fa-solid fa-gear"></i> Store Settings
+                </button>
+                <button class="admin-btn" onclick="exportCatalogJSON()" title="Export current catalog to JSON backup">
+                    <i class="fa-solid fa-download"></i> Export Catalog
+                </button>
+                <button class="admin-btn admin-btn-logout" onclick="handleAdminLogout()" title="Exit Admin Mode">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Scroll Progress Bar -->
+    <div id="scrollProgressBar" class="scroll-progress-bar"></div>
+
+    <!-- Header -->
+    <header class="site-header">
+        <div class="container nav-wrap">
+            <a class="brand" href="javascript:void(0)" id="secretAdminTrigger" aria-label="MinimalKicks home" title="MinimalKicks">
+                <span class="brand-text"><strong>MinimalKicks</strong></span>
+            </a>
+
+            <nav class="nav-links">
+                <a href="#top">Home</a>
+                <a href="#brands">Sneakers</a>
+                <a href="#about">About</a>
+                <a href="#reviews">Reviews</a>
+                <a href="#contact">Contact</a>
+            </nav>
+
+            <div class="search-box">
+                <div class="search-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+                    </svg>
+                </div>
+                <input type="text" id="searchInput" placeholder="Search sneakers...">
+                <div class="search-results" id="searchResults"></div>
+            </div>
+
+            <div class="nav-actions">
+                <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch theme" title="Toggle Light / Dark Mode">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                </button>
+
+                <!-- UK Size Chart Button -->
+                <button class="icon-btn" onclick="openSizeChartModal()" title="UK Sneaker Size Chart" aria-label="UK Size Chart">
+                    <i class="fa-solid fa-ruler-horizontal" style="font-size:15px;"></i>
+                </button>
+
+                <!-- WhatsApp Bag Button in Header -->
+                <button class="admin-key-btn" onclick="openOrderBagDrawer()" title="View WhatsApp Order Bag" aria-label="Order Bag" style="position:relative;">
+                    <i class="fa-solid fa-bag-shopping" style="font-size:14px;"></i>
+                    <span id="navBagBadge" style="display:none; position:absolute; top:-3px; right:-3px; background:var(--color-primary); color:#0a0a0f; font-size:10px; font-weight:800; width:16px; height:16px; border-radius:50%; align-items:center; justify-content:center;">0</span>
+                </button>
+
+                <a class="btn btn-whatsapp nav-desktop-only" id="headerWhatsappBtn" href="https://wa.me/917779012100?text=Hi%20MinimalKicks%2C%20I%20want%20to%20order%20shoes." target="_blank" rel="noopener noreferrer">Order on WhatsApp</a>
+
+                    <button class="mobile-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18M3 12h18M3 18h18" />
+                        </svg>
+                    </button>
+            </div>
+
+            <div class="mobile-menu" id="mobile-menu">
+                <a href="#top">Home</a>
+                <a href="#brands">Sneakers Collection</a>
+                <a href="#about">About MinimalKicks</a>
+                <a href="#reviews">Customer Reviews</a>
+                <a href="#contact">Contact &amp; Custom Sourcing</a>
+                <a class="btn btn-whatsapp" href="https://wa.me/917779012100?text=Hi%20MinimalKicks%2C%20I%20want%20to%20order%20shoes." target="_blank" rel="noopener noreferrer" style="margin-top:10px; justify-content:center;"><i class="fa-brands fa-whatsapp"></i> Order on WhatsApp</a>
+            </div>
+        </div>
+    </header>
+
+    <main id="main-content">
+        <!-- Home Section -->
+        <section class="hero" id="top">
+            <div class="container hero-grid">
+                <div class="hero-copy" data-reveal>
+                    <div class="hero-badge-pill">
+                        <span class="live-pulse-dot"></span>
+                        <span>4.8/5 Rating (200+ Orders Delivered) • Pan-India Express Delivery • 7-Day Exchange</span>
+                    </div>
+                    <h1>Clean sneaker style. Fast WhatsApp ordering.</h1>
+
+                    <p>
+                        Premium master craft sneakers inspired by global street culture.
+                        Exact silhouettes, responsive sole cushioning, authentic materials, and rapid door-to-door delivery across India.
+                    </p>
+                    <div class="hero-actions">
+                        <a class="btn btn-whatsapp" id="heroOrderBtn" href="https://wa.me/917779012100?text=Hi%20MinimalKicks%2C%20I%20want%20to%20order%20from%20the%20new%20collection." target="_blank" rel="noopener noreferrer">
+                            <i class="fa-brands fa-whatsapp"></i> Order on WhatsApp
+                        </a>
+                        <a class="btn btn-secondary" href="#brands">
+                            Explore Collection
+                        </a>
+                    </div>
+                    <div class="hero-metrics">
+                        <article class="metric"><span>Established</span><strong>7 June 2025</strong></article>
+                        <article class="metric"><span>Orders Delivered</span><strong>200+ Pairs</strong></article>
+                        <article class="metric"><span>Doorstep Exchange</span><strong>7 Days</strong></article>
+                    </div>
+                </div>
+
+                <div class="hero-visual" aria-hidden="true">
+                    <div class="orb one"></div>
+                    <div class="orb two"></div>
+                    <div class="shoe-stage">
+                        <div class="hero-3d" id="hero3d">
+                            <img src="MINIMAL.PNG" alt="Sneaker">
+                            <div class="depth"></div>
+                            <div class="light"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Brand Name Ticker -->
+        <div class="ticker-wrap" aria-hidden="true">
+            <div class="ticker">
+                <span>Nike</span><span>•</span><span>Adidas</span><span>•</span><span>Puma</span><span>•</span><span>Onitsuka Tiger</span><span>•</span><span>New Balance</span><span>•</span><span>Asics</span><span>•</span><span>On Cloud</span><span>•</span><span>Birkenstock</span><span>•</span><span>Crocs</span><span>•</span>
+                <span>Nike</span><span>•</span><span>Adidas</span><span>•</span><span>Puma</span><span>•</span><span>Onitsuka Tiger</span><span>•</span><span>New Balance</span><span>•</span><span>Asics</span><span>•</span><span>On Cloud</span><span>•</span><span>Birkenstock</span><span>•</span><span>Crocs</span><span>•</span>
+            </div>
+        </div>
+
+        <!-- Products List — Brand Filter -->
+        <section class="section" id="brands" style="margin-top: 10px;">
+            <div class="container">
+                <div class="section-head" data-reveal>
+                    <div>
+                        <h2>Explore Sneakers &amp; Streetwear</h2>
+                        <p>Browse by brand or filter by size, price, and department to find your perfect pair.</p>
+                    </div>
+                </div>
+
+                <!-- Brand chips rendered dynamically by JS -->
+                <div class="brand-strip" data-reveal id="brandStrip">
+                    <a class="brand-chip active" href="javascript:void(0)" data-filter="all">All</a>
+                </div>
+
+                <!-- Customer Filter Toolbar (Price, Gender, Sort & Size Chart) -->
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint); margin-right:4px;">Gender :</span>
+                        <button class="filter-btn active" id="gender-all" onclick="filterByGender('all')">All</button>
+                        <button class="filter-btn" id="gender-men" onclick="filterByGender('men')">Men</button>
+                        <button class="filter-btn" id="gender-women" onclick="filterByGender('women')">Women</button>
+                    </div>
+
+                    <div class="filter-group">
+                        <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint); margin-right:4px;">Price :</span>
+                        <button class="filter-btn active" id="price-all" onclick="filterByPrice('all')">All</button>
+                        <button class="filter-btn" id="price-under2500" onclick="filterByPrice('under2500')">Under ₹2,500</button>
+                        <button class="filter-btn" id="price-2500-3500" onclick="filterByPrice('2500-3500')">₹2,500–₹3,500</button>
+                        <button class="filter-btn" id="price-above3500" onclick="filterByPrice('above3500')">Above ₹3,500</button>
+                    </div>
+
+
+                    <div class="filter-group">
+                        <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint); margin-right:4px;">Sort:</span>
+                        <select class="filter-select" id="sortFilter" onchange="handleSortChange(this.value)">
+                            <option value="newest">Latest Drops</option>
+                            <option value="price-low">Price: Low to High</option>
+                            <option value="price-high">Price: High to Low</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:0 4px; margin-bottom:18px;">
+                    <span id="resultsCountText" style="font-size:12px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.05em;">Showing All Sneakers</span>
+                    <button id="clearFiltersBtn" onclick="resetAllFilters()" style="display:none; font-size:11px; color:#ef4444; font-weight:700; cursor:pointer; background:none; border:none;">Clear Filters ✕</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Products Grid -->
+        <section class="section" id="drops" style="padding-top: 0;">
+            <div class="container">
+                <div class="product-grid" id="productGrid">
+                    <div class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <p>Loading collection...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- About -->
+        <section class="section" id="about">
+            <div class="container showcase-band">
+                <article class="panel" data-reveal>
+                    <h3>Why Choose MinimalKicks</h3>
+                    <div class="service-list">
+                        <div class="service-item">
+                            <div class="service-icon">01</div>
+                            <div>
+                                <strong>Premium Master Quality</strong>
+                                <p>We offer top-tier master copy sneakers crafted with attention to detail, ensuring the exact look, sole comfort, and durability as original branded pairs.</p>
+                            </div>
+                        </div>
+                        <div class="service-item">
+                            <div class="service-icon">02</div>
+                            <div>
+                                <strong>Easy WhatsApp Ordering</strong>
+                                <p>No complicated checkout process. Just select your favorite pair, choose your size and confirm your order instantly through WhatsApp for a fast and hassle-free experience.</p>
+                            </div>
+                        </div>
+                        <div class="service-item">
+                            <div class="service-icon">03</div>
+                            <div>
+                                <strong>200+ Delivered Orders</strong>
+                                <p>Over 200+ sneakerheads served with reliable courier shipping across India, ensuring your sneakers reach you safely and on time.</p>
+                            </div>
+                        </div>
+                        <div class="service-item">
+                            <div class="service-icon">04</div>
+                            <div>
+                                <strong>7-Day Easy Exchange</strong>
+                                <p>Got the wrong size? No worries. We provide a smooth 7-day exchange process so you always get the perfect fit.</p>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <aside class="panel" id="faq" data-reveal>
+                    <div class="faq-head-row">
+                        <h3 class="faq-main-title">Frequently Asked Questions</h3>
+                        <a href="https://wa.me/917779012100?text=Hi%20MinimalKicks%2C%20I%20have%20a%20question%20about%20ordering." target="_blank" class="faq-customer-help-badge" rel="noopener noreferrer">
+                            <i class="fa-solid fa-circle-question"></i> Customer Help 24/7
+                        </a>
+                    </div>
+
+                    <div class="faq-item active">
+                        <h4>Are these master grade sneakers? How is the quality? <span class="faq-toggle-icon">+</span></h4>
+                        <p>Yes. MinimalKicks specializes exclusively in 1:1 master copy sneakers. We use original-grade leather, exact factory stitching, authentic silhouette curvature, and responsive cushioning so your pair feels, weighs, and looks identical to high-heat releases.</p>
+                    </div>
+
+                    <div class="faq-item">
+                        <h4>Do I get real in-hand photos before my order is dispatched? <span class="faq-toggle-icon">+</span></h4>
+                        <p>Yes, absolutely! We share real in-hand photos and details of our collection directly on WhatsApp so you can verify the exact quality and colorway before shipping.</p>
+                    </div>
+
+                    <div class="faq-item">
+                        <h4>How do I choose the correct size? Do they fit TTS? <span class="faq-toggle-icon">+</span></h4>
+                        <p>Most models fit True to Size (TTS) based on standard UK sizing. You can click "UK Size Guide" on any product card to see EU and CM foot measurements. When in doubt, message us on WhatsApp and our sneaker specialists will advise you.</p>
+                    </div>
+
+                    <div class="faq-item">
+                        <h4>What payment methods do you accept? Is COD available? <span class="faq-toggle-icon">+</span></h4>
+                        <p>We accept Google Pay, PhonePe, Paytm, all UPI apps, and direct Bank Transfer. Partial Cash On Delivery (COD) is also supported across select pin codes. Confirmation is handled instantly in your WhatsApp chat.</p>
+                    </div>
+
+                    <div class="faq-item">
+                        <h4>How long does delivery take and can I track my parcel? <span class="faq-toggle-icon">+</span></h4>
+                        <p>Orders are dispatched within 24–48 hours of order confirmation. Delivery across India takes 4–7 business days. As soon as your order ships, an official tracking link from BlueDart, Delhivery, or DTDC is shared on your WhatsApp.</p>
+                    </div>
+
+                    <div class="faq-item">
+                        <h4>What if the shoes don't fit? What is your exchange policy? <span class="faq-toggle-icon">+</span></h4>
+                        <p>We offer a hassle-free 7-day doorstep size exchange. If the size is too tight or loose, simply notify us on WhatsApp. As long as the sneakers are unworn with original tags and box, we dispatch your replacement size.</p>
+                    </div>
+
+                    <div class="faq-item">
+                        <h4>Can you source a sneaker not listed on your website? <span class="faq-toggle-icon">+</span></h4>
+                        <p>Absolutely! Send us any photo on WhatsApp (<a id="faqWhatsappLink" href="https://wa.me/917779012100" target="_blank">+91 7779012100</a>). Our sourcing team will check availability, send live pictures, and provide instant pricing.</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <!-- Customer Reviews (Butter-Smooth Zero-Glitch Marquee) -->
+        <section class="section" id="reviews">
+            <div class="container">
+                <div class="section-head" style="margin-bottom: 10px;">
+                    <div>
+                        <h2>Customer Reviews &amp; Testimonials</h2>
+                        <p>Real feedback from customers across India who ordered their pairs from MinimalKicks.</p>
+                    </div>
+                </div>
+
+                <div class="review-slider">
+                    <div class="review-track" id="reviewTrack">
+                        <!-- Review 1 -->
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"Quality of shoes is insane! It doesn't feel like a master replica at all. The stitching, sole and weight are 100% on point. Totally satisfied with the service."</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Nike Blazer Mid 77</span>
+                                <span class="customer-name">Raj P. • Bharuch, Gujarat</span>
+                            </div>
+                        </div>
+
+                        <!-- Review 2 -->
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"Got a great deal from MinimalKicks! Birkenstocks are super comfy, true to size and the cork footbed feels authentic. Fast delivery too."</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Birkenstock Boston</span>
+                                <span class="customer-name">Vansh Patel • Valsad, Gujarat</span>
+                            </div>
+                        </div>
+
+                        <!-- Review 3 -->
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"I recently purchased Samba Black White and I must say I'm genuinely impressed! Premium leather feel, perfect gum sole. Definitely ordering my next pair here!"</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Adidas Samba Black White</span>
+                                <span class="customer-name">Mihir Thakor • Vadodara, Gujarat</span>
+                            </div>
+                        </div>
+
+                        <!-- Review 4 -->
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"Bro this is the best quality and super comfortable for daily wear. Travis Scott Olive looks crazy clean with baggy cargos! Thank you bro!"</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Jordan 1 Low Travis Scott Olive</span>
+                                <span class="customer-name">Somya Patel • Rajpipla, Gujarat</span>
+                            </div>
+                        </div>
+
+                        <!-- Review 5 -->
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"Wonderful shoes! Product quality is way better than expected. Ordered Nike Dunk Low Cacao Wow and got real pictures before shipping."</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Nike Dunk Low Cacao Wow</span>
+                                <span class="customer-name">Raviraj • Ahmedabad</span>
+                            </div>
+                        </div>
+
+                        <!-- Review 6 -->
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"New Balance 9060 is ridiculously comfortable. Feels like walking on clouds. Received in 4 days with proper box and bubble packaging."</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">New Balance 9060 Castlerock</span>
+                                <span class="customer-name">Het • Navsari, Gujarat</span>
+                            </div>
+                        </div>
+
+                        <!-- Duplicate set for seamless continuous marquee loop -->
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"Quality of shoes is insane! It doesn't feel like a master replica at all. The stitching, sole and weight are 100% on point. Totally satisfied with the service."</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Nike Blazer Mid 77</span>
+                                <span class="customer-name">Raj P. • Bharuch, Gujarat</span>
+                            </div>
+                        </div>
+
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"Got a great deal from MinimalKicks! Birkenstocks are super comfy, true to size and the cork footbed feels authentic. Fast delivery too."</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Birkenstock Boston</span>
+                                <span class="customer-name">Vansh Patel • Valsad, Gujarat</span>
+                            </div>
+                        </div>
+
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"I recently purchased Samba Black White and I must say I'm genuinely impressed! Premium leather feel, perfect gum sole. Definitely ordering my next pair here!"</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Adidas Samba Black White</span>
+                                <span class="customer-name">Mihir Thakor • Vadodara, Gujarat</span>
+                            </div>
+                        </div>
+
+                        <div class="review-card">
+                            <div class="review-card-top">
+                                <div class="review-stars">
+                                    <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                                </div>
+                                <span class="review-verified-badge"><i class="fa-solid fa-circle-check"></i> Verified Buyer</span>
+                            </div>
+                            <p class="review-text">"Bro this is the best quality and super comfortable for daily wear. Travis Scott Olive looks crazy clean with baggy cargos! Thank you bro!"</p>
+                            <div class="review-meta">
+                                <span class="shoe-name">Jordan 1 Low Travis Scott Olive</span>
+                                <span class="customer-name">Somya Patel • Rajpipla, Gujarat</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact -->
+        <section class="section" id="contact">
+            <div class="container">
+                <div class="newsletter" data-reveal>
+                    <div>
+                        <h2>Have a question or custom request?</h2>
+                        <p>Looking for a sneaker not listed here? Send us the photo directly on WhatsApp for stock check and dispatch details.</p>
+                    </div>
+                    <form class="signup" id="newsletterQueryForm">
+                        <input type="text" id="nq_name" placeholder="Your name" required>
+                        <input type="tel" id="nq_phone" placeholder="WhatsApp number" required>
+                        <input type="text" id="nq_message" placeholder="Which sneaker are you looking for?" required>
+                        <button class="btn btn-whatsapp" type="submit">Ask on WhatsApp</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Scroll to Top Floating Button -->
+    <button id="scrollToTopBtn" class="scroll-to-top-btn" onclick="window.scrollTo({top:0, behavior:'smooth'})" aria-label="Scroll to top" title="Scroll to Top">
+        <i class="fa-solid fa-arrow-up"></i>
+    </button>
+
+    <!-- Floating WhatsApp Multi-Pair Bag Button -->
+    <button id="floatingBagBtn" class="floating-bag-btn" onclick="openOrderBagDrawer()" style="display:none;">
+        <i class="fa-solid fa-bag-shopping"></i>
+        <span>WhatsApp Bag</span>
+        <span class="floating-bag-badge" id="floatingBagCount">0</span>
+    </button>
+
+    <!-- WhatsApp Direct Float Button -->
+    <a class="whatsapp-float" id="floatWhatsappBtn" href="https://wa.me/917779012100?text=Hi%20MinimalKicks%2C%20I%20want%20details%20about%20your%20shoes." target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp">
+        <span class="whatsapp-float-pulse"></span>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M20.52 3.48A11.8 11.8 0 0 0 12.11 0C5.58 0 .25 5.32.25 11.87c0 2.09.55 4.12 1.58 5.92L0 24l6.39-1.67a11.84 11.84 0 0 0 5.72 1.47h.01c6.53 0 11.86-5.32 11.86-11.87 0-3.17-1.23-6.15-3.46-8.45ZM12.12 21.8h-.01a9.86 9.86 0 0 1-5.02-1.37l-.36-.21-3.79 1 1.01-3.7-.24-.38a9.88 9.88 0 0 1-1.52-5.27c0-5.44 4.43-9.87 9.88-9.87 2.64 0 5.11 1.03 6.97 2.91a9.8 9.8 0 0 1 2.9 6.97c0 5.44-4.43 9.87-9.87 9.87Zm5.41-7.4c-.3-.15-1.77-.87-2.05-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.28-.47-2.43-1.5-.9-.8-1.5-1.8-1.68-2.1-.17-.3-.02-.46.13-.61.14-.14.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.68-1.64-.94-2.24-.24-.58-.49-.5-.67-.5h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.5s1.07 2.9 1.22 3.1c.15.2 2.1 3.2 5.1 4.48.71.31 1.27.5 1.7.64.72.23 1.37.2 1.88.12.57-.08 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35Z" />
+        </svg>
+        <span>Chat on WhatsApp</span>
+    </a>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="container footer-row" style="justify-content: center; text-align: center;">
+            <div class="footer-content" style="margin: 0 auto; text-align: center;">
+                <h3>MinimalKicks</h3>
+                <p>Premium streetwear sneakers crafted for lifestyle, comfort, and impact.</p>
+                <div style="display: flex; justify-content: center; align-items: center; margin-top: 14px;">
+                    <a id="footerInstagramLink" href="https://instagram.com/minimal_kicks" target="_blank" class="ig-link">Follow us on Instagram →</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ===================== DRAWERS & MODALS ===================== -->
+
+    <!-- Multi-Pair WhatsApp Order Bag Drawer -->
+    <div id="orderBagOverlay" class="bag-drawer-overlay" onclick="closeOrderBagDrawer()"></div>
+    <div id="orderBagDrawer" class="bag-drawer">
+        <div class="bag-header">
+            <div class="bag-title">
+                <i class="fa-solid fa-bag-shopping" style="color:var(--color-primary);"></i>
+                <span>Your WhatsApp Order Bag</span>
+            </div>
+            <button class="modal-close-btn" onclick="closeOrderBagDrawer()">&times;</button>
+        </div>
+
+        <div id="bagItemsList" class="bag-items-list">
+            <!-- Rendered by JS -->
+        </div>
+
+        <div class="bag-footer">
+            <div class="bag-total-row">
+                <span class="bag-total-label">Estimated Total:</span>
+                <span id="bagTotalAmount" class="bag-total-val">₹0</span>
+            </div>
+            <div style="font-size:11px; color:#10b981; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-truck-fast"></i> Free Shipping &amp; 7-Day Exchange Included
+            </div>
+            <button class="btn btn-whatsapp" onclick="sendBagOrderWhatsApp()" style="width:100%; justify-content:center; padding:12px;">
+                <i class="fa-brands fa-whatsapp" style="font-size:16px;"></i> Send Complete Order to WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <!-- Product Detail Modal -->
+    <div id="productModal" class="modal-overlay hidden" style="display:none;" onclick="if(event.target===this)closeProductModal()">
+        <div class="modal-box product-modal-box">
+            <button class="modal-close-btn" onclick="closeProductModal()" aria-label="Close">&times;</button>
+            <div id="modalContent" class="modal-content-inner"></div>
+            <div id="modalThumbs" class="modal-thumb-strip"></div>
+        </div>
+    </div>
+
+    <!-- UK Size Guide Modal -->
+    <div id="sizeChartModal" class="modal-overlay hidden" style="display:none;" onclick="if(event.target===this)closeSizeChartModal()">
+        <div class="modal-box" style="max-width: 520px;">
+            <button class="modal-close-btn" onclick="closeSizeChartModal()">&times;</button>
+            <h3 class="modal-title"><i class="fa-solid fa-ruler-horizontal" style="color:var(--color-primary); margin-right:6px;"></i> UK Sneaker Size Chart</h3>
+            <p class="modal-subtitle">Find your exact sneaker fit across Indian / UK, European (EU), and Foot Length (CM).</p>
+            <table class="size-chart-table">
+                <thead>
+                    <tr>
+                        <th>UK Size</th>
+                        <th>EU Size</th>
+                        <th>US Size</th>
+                        <th>Length (CM)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>UK 3</strong></td><td>EU 35.5</td><td>US 4</td><td>22.0 cm</td></tr>
+                    <tr><td><strong>UK 4</strong></td><td>EU 37</td><td>US 5</td><td>23.0 cm</td></tr>
+                    <tr><td><strong>UK 5</strong></td><td>EU 38</td><td>US 6</td><td>24.0 cm</td></tr>
+                    <tr><td><strong>UK 6</strong></td><td>EU 40</td><td>US 7</td><td>25.0 cm</td></tr>
+                    <tr><td><strong>UK 7</strong></td><td>EU 41</td><td>US 8</td><td>26.0 cm</td></tr>
+                    <tr><td><strong>UK 8</strong></td><td>EU 42.5</td><td>US 9</td><td>27.0 cm</td></tr>
+                    <tr><td><strong>UK 9</strong></td><td>EU 44</td><td>US 10</td><td>28.0 cm</td></tr>
+                    <tr><td><strong>UK 10</strong></td><td>EU 45</td><td>US 11</td><td>29.0 cm</td></tr>
+                    <tr><td><strong>UK 11</strong></td><td>EU 46</td><td>US 12</td><td>30.0 cm</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size:11px; color:var(--color-text-faint); margin-top:14px; text-align:center;">
+                💡 <em>Not sure? Message our team on WhatsApp for size advice before placing order.</em>
+            </p>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="adminLoginModal" class="modal-overlay hidden" style="display:none;" onclick="if(event.target===this)closeAdminLoginModal()">
+        <div class="modal-box admin-modal-box">
+            <button class="modal-close-btn" onclick="closeAdminLoginModal()" aria-label="Close">&times;</button>
+            <h3 class="modal-title">Admin Portal Login</h3>
+            <p class="modal-subtitle">Enter your secure Admin PIN to manage inventory, upload sneakers and manage brands.</p>
+            
+            <div id="adminLoginError" class="admin-login-error hidden" style="display:none;"></div>
+
+            <div class="modal-form-group">
+                <input type="password" id="adminPinInput" placeholder="Enter Admin PIN" class="modal-input" onkeydown="if(event.key==='Enter')handleAdminLogin()">
+            </div>
+            <button class="btn btn-whatsapp modal-submit-btn" onclick="handleAdminLogin()">Unlock Admin Mode</button>
+        </div>
+    </div>
+
+    <!-- Add / Edit Sneaker Modal (Multi-Photo Supported: 4-5 Photos) -->
+    <div id="addProductModal" class="modal-overlay hidden" style="display:none;" onclick="if(event.target===this)closeAddProductModal()">
+        <div class="modal-box add-product-modal-box">
+            <button class="modal-close-btn" onclick="closeAddProductModal()" aria-label="Close">&times;</button>
+            <h3 class="modal-title" id="addProductModalTitle">+ Upload Sneaker (Multi-Photo)</h3>
+
+            <div class="add-product-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Sneaker Name / Title *</label>
+                        <input type="text" id="productName" placeholder="e.g. Nike Dunk Low Panda" class="modal-input">
+                    </div>
+                    <div class="form-group">
+                        <label>Brand *</label>
+                        <select id="productBrand" class="modal-input">
+                            <!-- Populated dynamically by JS -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Offer Price (₹) *</label>
+                        <input type="number" id="productPrice" placeholder="2999" class="modal-input">
+                    </div>
+                    <div class="form-group">
+                        <label>MRP / Strikethrough Price (₹)</label>
+                        <input type="number" id="productMrp" placeholder="5999" class="modal-input">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="productCategory" class="modal-input">
+                            <option value="Sneakers">Sneakers</option>
+                            <option value="Running">Running</option>
+                            <option value="High Tops">High Tops</option>
+                            <option value="Low Tops">Low Tops</option>
+                            <option value="Clogs & Mules">Clogs &amp; Mules</option>
+                            <option value="Slides & Sandals">Slides &amp; Sandals</option>
+                            <option value="Lifestyle">Lifestyle</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-check">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="girlsCollection" onchange="togglePresetSizes(this.checked)">
+                            Girls / Women Collection (UK 3–7)
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Sizes Selector (Interactive Chips) -->
+                <div class="form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <label>Available Sizes (Click to toggle)</label>
+                        <div style="display:flex; gap:6px;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="setSizesPreset('men')">Men (7-11)</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="setSizesPreset('women')">Women (3-7)</button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="setSizesPreset('all')">All</button>
+                        </div>
+                    </div>
+                    <div id="modalSizeChips" class="sizes" style="padding:4px 0;">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description &amp; Materials</label>
+                    <textarea id="productDescription" placeholder="Master quality materials, comfort cushioning, street style..." class="modal-input modal-textarea" rows="2"></textarea>
+                </div>
+
+                <!-- Multi-Photo Upload Area (Apply 4-5 Photos) -->
+                <div class="form-group">
+                    <label>Sneaker Photos (Upload 4–5 Photos for 360° Angles)</label>
+                    <div class="photo-dropzone" id="photoDropzone">
+                        <i class="fa-solid fa-cloud-arrow-up" style="font-size:28px; color:var(--color-primary);"></i>
+                        <span style="font-weight:700;">Click or Drag &amp; Drop 4–5 Sneaker Photos Here</span>
+                        <small>Side Angle, Sole, Back, Top-Down • First photo becomes card cover</small>
+                    </div>
+                    <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none">
+                    <div id="stagedImagesPreview" class="staged-images-preview"></div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeAddProductModal()">Cancel</button>
+                    <button class="btn btn-whatsapp" id="saveProductBtn" onclick="handleSaveProduct()">Save Sneaker</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Brands Modal -->
+    <div id="brandsModal" class="modal-overlay hidden" style="display:none;" onclick="if(event.target===this)closeBrandsModal()">
+        <div class="modal-box brands-modal-box">
+            <button class="modal-close-btn" onclick="closeBrandsModal()" aria-label="Close">&times;</button>
+            <h3 class="modal-title">Manage Brands</h3>
+            <p class="modal-subtitle">Add or remove sneaker brands from the storefront filter.</p>
+            <div class="add-brand-row">
+                <input type="text" id="newBrandInput" placeholder="New brand name (e.g. Asics)" class="modal-input" onkeydown="if(event.key==='Enter')handleAddBrand()">
+                <button class="btn btn-whatsapp" onclick="handleAddBrand()">Add</button>
+            </div>
+            <div id="brandsList" class="brands-list"></div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal-overlay hidden" style="display:none;" onclick="if(event.target===this)closeSettingsModal()">
+        <div class="modal-box settings-modal-box">
+            <button class="modal-close-btn" onclick="closeSettingsModal()" aria-label="Close">&times;</button>
+            <h3 class="modal-title">Store &amp; Admin Settings</h3>
+            <div class="form-group">
+                <label>WhatsApp Number (Orders &amp; Queries)</label>
+                <input type="text" id="settingsWhatsapp" placeholder="917779012100" class="modal-input">
+            </div>
+            <div class="form-group">
+                <label>Instagram URL</label>
+                <input type="text" id="settingsInstagram" placeholder="https://instagram.com/minimal_kicks" class="modal-input">
+            </div>
+            <div class="form-group" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--color-divider);">
+                <label>Change Admin PIN</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="password" id="newPinInput" placeholder="New PIN (min 4 chars)" class="modal-input">
+                    <button class="btn btn-secondary btn-sm" onclick="handleChangePin()" style="white-space:nowrap;">Update PIN</button>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+                <button class="btn btn-whatsapp" onclick="handleSaveSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts (Catalog Fallback for offline file:// + APIs + Main App) -->
+    <script src="data/catalog-fallback.js"></script>
+    <script src="js/products.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

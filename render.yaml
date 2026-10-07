@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: minimalkicks
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: ""
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 10000
