@@ -5,6 +5,7 @@
  */
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
@@ -76,6 +77,163 @@ function broadcastEvent(type, data) {
       sseClients.delete(client);
     }
   }
+}
+
+// GitHub & Cloud Persistence Configuration
+const GITHUB_REPO = process.env.GITHUB_REPO || 'Codewithjeel/MinimalKicks';
+const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
+
+function getGitHubToken() {
+  const settings = readJson(SETTINGS_FILE, {});
+  return (process.env.GITHUB_TOKEN || settings.githubToken || '').trim();
+}
+
+function getUpstashConfig() {
+  const settings = readJson(SETTINGS_FILE, {});
+  return {
+    url: (process.env.UPSTASH_REDIS_REST_URL || settings.upstashUrl || '').trim(),
+    token: (process.env.UPSTASH_REDIS_REST_TOKEN || settings.upstashToken || '').trim()
+  };
+}
+
+let _gitSyncTimer = null;
+function scheduleCloudSync(products) {
+  syncToUpstash(products);
+
+  if (_gitSyncTimer) clearTimeout(_gitSyncTimer);
+  _gitSyncTimer = setTimeout(() => {
+    syncCatalogToGitHub().catch(err => console.error('[GitSync Error]', err.message));
+  }, 3000);
+}
+
+async function syncCatalogToGitHub() {
+  const token = getGitHubToken();
+  if (!token) {
+    console.log('[GitSync Notice] No GitHub token configured. Changes saved locally to disk.');
+    return { success: false, reason: 'No GitHub token configured. Set GITHUB_TOKEN or add it in Store Settings.' };
+  }
+
+  if (!fs.existsSync(PRODUCTS_FILE)) return { success: false, reason: 'products.json not found' };
+  const content = fs.readFileSync(PRODUCTS_FILE, 'utf8');
+  const pathInRepo = 'data/products.json';
+  const base64Content = Buffer.from(content, 'utf8').toString('base64');
+
+  // Step 1: Get existing file SHA from GitHub
+  const getSha = () => new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_REPO}/contents/${pathInRepo}?ref=${GITHUB_BRANCH}`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'MinimalKicks-Server',
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    }, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json.sha || null);
+        } catch (_) { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.end();
+  });
+
+  const sha = await getSha();
+
+  // Step 2: PUT updated file to GitHub repo
+  return new Promise((resolve) => {
+    const payload = JSON.stringify({
+      message: `Auto-sync sneaker catalog [${new Date().toISOString()}]`,
+      content: base64Content,
+      branch: GITHUB_BRANCH,
+      ...(sha ? { sha } : {})
+    });
+
+    const req = https.request({
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_REPO}/contents/${pathInRepo}`,
+      method: 'PUT',
+      headers: {
+        'User-Agent': 'MinimalKicks-Server',
+        'Authorization': `token ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    }, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log('[GitSync Success] Catalog committed to GitHub permanently!');
+          resolve({ success: true, message: 'Committed to GitHub successfully!' });
+        } else {
+          console.error('[GitSync Failed]', res.statusCode, data);
+          resolve({ success: false, status: res.statusCode, error: data });
+        }
+      });
+    });
+    req.on('error', err => {
+      console.error('[GitSync Network Error]', err.message);
+      resolve({ success: false, error: err.message });
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
+function syncToUpstash(products) {
+  const { url, token } = getUpstashConfig();
+  if (!url || !token) return;
+  try {
+    const endpoint = new URL(`/set/products`, url);
+    const payload = JSON.stringify(products);
+    const req = https.request(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    }, () => {});
+    req.on('error', () => {});
+    req.write(payload);
+    req.end();
+  } catch (_) {}
+}
+
+async function loadFromUpstash() {
+  const { url, token } = getUpstashConfig();
+  if (!url || !token) return null;
+  return new Promise((resolve) => {
+    try {
+      const endpoint = new URL(`/get/products`, url);
+      const req = https.request(endpoint, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }, res => {
+        let body = '';
+        res.on('data', c => body += c);
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            if (data && data.result) {
+              const parsed = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
+              if (Array.isArray(parsed) && parsed.length > 0) return resolve(parsed);
+            }
+            resolve(null);
+          } catch (_) { resolve(null); }
+        });
+      });
+      req.on('error', () => resolve(null));
+      req.end();
+    } catch (_) { resolve(null); }
+  });
 }
 
 function saveUploadedImage(dataUrl, id, index) {
@@ -169,6 +327,7 @@ const server = http.createServer(async (req, res) => {
 
       writeJson(PRODUCTS_FILE, products);
       broadcastEvent('catalog_updated', { action: 'create', id: sku });
+      scheduleCloudSync(products);
       res.writeHead(201, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(newProduct));
     } catch (err) {
@@ -194,6 +353,7 @@ const server = http.createServer(async (req, res) => {
       products[idx] = { ...products[idx], ...payload, images: savedImages, id: targetId };
       writeJson(PRODUCTS_FILE, products);
       broadcastEvent('catalog_updated', { action: 'update', id: targetId });
+      scheduleCloudSync(products);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(products[idx]));
     } catch (err) {
@@ -219,8 +379,44 @@ const server = http.createServer(async (req, res) => {
     products = products.filter(p => p.id !== targetId);
     writeJson(PRODUCTS_FILE, products);
     broadcastEvent('catalog_updated', { action: 'delete', id: targetId });
+    scheduleCloudSync(products);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ deleted: targetId }));
+    return;
+  }
+
+  // POST /api/catalog/import (Full Catalog JSON Import & Permanent Sync)
+  if (pathname === '/api/catalog/import' && req.method === 'POST') {
+    try {
+      const payload = await parseJsonBody(req);
+      const incoming = Array.isArray(payload) ? payload : (payload.products || []);
+      if (!Array.isArray(incoming) || incoming.length === 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid catalog format. Expected an array of sneakers.' }));
+        return;
+      }
+      writeJson(PRODUCTS_FILE, incoming);
+      broadcastEvent('catalog_updated', { action: 'import', count: incoming.length });
+      scheduleCloudSync(incoming);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, count: incoming.length }));
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // POST /api/cloud/sync (Manual Trigger for GitHub / Cloud Database Sync)
+  if (pathname === '/api/cloud/sync' && req.method === 'POST') {
+    try {
+      const gitRes = await syncCatalogToGitHub();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(gitRes));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
     return;
   }
 
@@ -368,6 +564,13 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`MinimalKicks Server running at http://localhost:${PORT}`);
+  try {
+    const cloudItems = await loadFromUpstash();
+    if (Array.isArray(cloudItems) && cloudItems.length > 0) {
+      writeJson(PRODUCTS_FILE, cloudItems);
+      console.log(`[CloudSync] Restored ${cloudItems.length} sneakers from Upstash Cloud Database.`);
+    }
+  } catch (_) {}
 });

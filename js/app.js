@@ -1664,6 +1664,53 @@ function exportCatalogJSON() {
 }
 
 /* =========================================================
+   IMPORT CATALOG FROM JSON
+   ========================================================= */
+async function handleCatalogImport(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (evt) => {
+    try {
+      const parsed = JSON.parse(evt.target.result);
+      const items = Array.isArray(parsed) ? parsed : (parsed.products || []);
+      if (!Array.isArray(items) || items.length === 0) {
+        showToast('Invalid catalog file format. Expected a JSON array of sneakers.', 'error');
+        return;
+      }
+
+      if (!confirm(`Import catalog with ${items.length} sneakers? This will update your store catalog permanently.`)) {
+        e.target.value = '';
+        return;
+      }
+
+      const res = await fetch('/api/catalog/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(items)
+      });
+
+      if (res.ok) {
+        state.allProducts = await window.InventoryAPI.fetchAll();
+        state.filteredProducts = [...state.allProducts];
+        renderProductGrid();
+        updateAdminBar();
+        showToast(`Catalog imported successfully! ${items.length} sneakers updated ✓`, 'success');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast('Import failed: ' + (errData.error || 'Server error'), 'error');
+      }
+    } catch (err) {
+      showToast('Error parsing JSON file: ' + err.message, 'error');
+    } finally {
+      e.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* =========================================================
    MANAGE BRANDS MODAL
    ========================================================= */
 function openBrandsModal() {
@@ -1722,11 +1769,23 @@ async function handleDeleteBrand(brandName) {
 /* =========================================================
    STORE & ADMIN SETTINGS MODAL
    ========================================================= */
-function openSettingsModal() {
+async function openSettingsModal() {
   const m = document.getElementById('settingsModal');
   if (!m) return;
-  document.getElementById('settingsWhatsapp').value = state.whatsappNumber;
-  document.getElementById('settingsInstagram').value = state.instagramUrl;
+  document.getElementById('settingsWhatsapp').value = state.whatsappNumber || '';
+  document.getElementById('settingsInstagram').value = state.instagramUrl || '';
+  
+  if (window.location.protocol.startsWith('http')) {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const s = await res.json();
+        const ghInput = document.getElementById('settingsGithubToken');
+        if (ghInput && s.githubToken) ghInput.value = s.githubToken;
+      }
+    } catch (_) {}
+  }
+
   m.classList.remove('hidden');
   m.style.display = 'flex';
 }
@@ -1742,8 +1801,9 @@ function closeSettingsModal() {
 async function handleSaveSettings() {
   const wa = (document.getElementById('settingsWhatsapp')?.value || '').trim();
   const ig = (document.getElementById('settingsInstagram')?.value || '').trim();
+  const ghToken = (document.getElementById('settingsGithubToken')?.value || '').trim();
 
-  const payload = { whatsappNumber: wa, instagramUrl: ig };
+  const payload = { whatsappNumber: wa, instagramUrl: ig, githubToken: ghToken };
   if (window.location.protocol.startsWith('http')) {
     try {
       await fetch('/api/settings', {
@@ -1761,6 +1821,21 @@ async function handleSaveSettings() {
   updateStorefrontLinks();
   closeSettingsModal();
   showToast('Store settings saved successfully ✓', 'success');
+}
+
+async function triggerManualSync() {
+  showToast('Connecting to GitHub & syncing catalog...', 'info');
+  try {
+    const res = await fetch('/api/cloud/sync', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Catalog committed to GitHub successfully! ✓', 'success');
+    } else {
+      showToast(data.reason || data.error || 'Sync failed. Please check token.', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to trigger sync: ' + err.message, 'error');
+  }
 }
 
 async function handleChangePin() {

@@ -75,6 +75,10 @@
                 <button class="admin-btn" onclick="exportCatalogJSON()" title="Export current catalog to JSON backup">
                     <i class="fa-solid fa-download"></i> Export Catalog
                 </button>
+                <button class="admin-btn" onclick="document.getElementById('importCatalogInput').click()" title="Import / Restore catalog from JSON backup">
+                    <i class="fa-solid fa-file-import"></i> Import Catalog
+                </button>
+                <input type="file" id="importCatalogInput" accept=".json" style="display:none;" onchange="handleCatalogImport(event)">
                 <button class="admin-btn admin-btn-logout" onclick="handleAdminLogout()" title="Exit Admin Mode">
                     <i class="fa-solid fa-right-from-bracket"></i> Logout
                 </button>
@@ -773,6 +777,19 @@
                     <button class="btn btn-secondary btn-sm" onclick="handleChangePin()" style="white-space:nowrap;">Update PIN</button>
                 </div>
             </div>
+            <div class="form-group" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--color-divider);">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                    <label style="font-weight:700; color:var(--color-primary);"><i class="fa-brands fa-github"></i> Permanent Auto-Sync (GitHub Token)</label>
+                    <span style="font-size:10px; color:#10b981; font-weight:700;">Prevents Render Data Reset</span>
+                </div>
+                <p style="font-size:11px; color:var(--color-text-muted); margin-bottom:8px; line-height:1.4;">
+                    Enter a GitHub Personal Access Token (classic with <code>repo</code> scope) to auto-commit all price edits &amp; sneaker uploads directly to GitHub so they <strong>stay permanent forever</strong> on Render!
+                </p>
+                <div style="display:flex; gap:8px;">
+                    <input type="password" id="settingsGithubToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" class="modal-input">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="triggerManualSync()" style="white-space:nowrap;"><i class="fa-solid fa-rotate"></i> Sync Now</button>
+                </div>
+            </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
                 <button class="btn btn-whatsapp" onclick="handleSaveSettings()">Save Settings</button>
@@ -781,8 +798,8 @@
     </div>
 
     <!-- Scripts (Catalog Fallback for offline file:// + APIs + Main App) -->
-    <script src="data/catalog-fallback.js"></script>
-    <script src="js/products.js"></script>
-    <script src="js/app.js?v=2.2"></script>
+    <script src="data/catalog-fallback.js?v=2.3"></script>
+    <script src="js/products.js?v=2.3"></script>
+    <script src="js/app.js?v=2.3"></script>
 </body>
 </html>
