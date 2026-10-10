@@ -8,6 +8,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = __dirname;
@@ -23,17 +24,69 @@ const DEFAULT_BRANDS = ['Nike', 'Adidas', 'New Balance', 'Puma', 'On Cloud', 'Bi
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// Password Hashing Helpers (Salted PBKDF2 with SHA-512)
+function hashPin(pin, salt) {
+  if (!salt) salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(String(pin), salt, 100000, 64, 'sha512').toString('hex');
+  return { hash, salt };
+}
+
+function verifyPin(enteredPin, storedHash, storedSalt) {
+  if (!storedHash || !storedSalt || !enteredPin) return false;
+  try {
+    const testHash = crypto.pbkdf2Sync(String(enteredPin), storedSalt, 100000, 64, 'sha512').toString('hex');
+    const testBuf = Buffer.from(testHash);
+    const storedBuf = Buffer.from(storedHash);
+    if (testBuf.length !== storedBuf.length) return false;
+    return crypto.timingSafeEqual(testBuf, storedBuf);
+  } catch (_) {
+    return false;
+  }
+}
+
+function ensureSecureSettings() {
+  try {
+    const settings = readJson(SETTINGS_FILE, {});
+    let modified = false;
+
+    // Migrate plain-text adminPin to salted SHA-512 hash
+    if (settings.adminPin) {
+      const { hash, salt } = hashPin(settings.adminPin);
+      settings.adminPinHash = hash;
+      settings.adminPinSalt = salt;
+      delete settings.adminPin; // Remove plain text password completely!
+      modified = true;
+    } else if (!settings.adminPinHash || !settings.adminPinSalt) {
+      const { hash, salt } = hashPin('MinimalKicks@Admin');
+      settings.adminPinHash = hash;
+      settings.adminPinSalt = salt;
+      modified = true;
+    }
+
+    if (modified) {
+      writeJson(SETTINGS_FILE, settings);
+      console.log('[Security] Admin PIN migrated to salted SHA-512 cryptographic hash.');
+    }
+  } catch (err) {
+    console.error('[Security Migration Error]', err.message);
+  }
+}
+
 // Initialize data files if not present
 if (!fs.existsSync(PRODUCTS_FILE)) {
   fs.writeFileSync(PRODUCTS_FILE, JSON.stringify([], null, 2), 'utf8');
 }
 
 if (!fs.existsSync(SETTINGS_FILE)) {
+  const { hash, salt } = hashPin('MinimalKicks@Admin');
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify({
     whatsappNumber: '917779012100',
     instagramUrl: 'https://instagram.com/minimal_kicks',
-    adminPin: 'MinimalKicks@Admin'
+    adminPinHash: hash,
+    adminPinSalt: salt
   }, null, 2), 'utf8');
+} else {
+  ensureSecureSettings();
 }
 
 if (!fs.existsSync(BRANDS_FILE)) {
@@ -77,6 +130,109 @@ function broadcastEvent(type, data) {
       sseClients.delete(client);
     }
   }
+}
+
+// ==========================================
+// SECURITY: SESSION TOKENS & AUTH MIDDLEWARE
+// ==========================================
+const SECRET_FILE = path.join(DATA_DIR, '.server_secret');
+let SERVER_SECRET = process.env.ADMIN_JWT_SECRET || '';
+if (!SERVER_SECRET) {
+  if (fs.existsSync(SECRET_FILE)) {
+    try { SERVER_SECRET = fs.readFileSync(SECRET_FILE, 'utf8').trim(); } catch (_) {}
+  }
+  if (!SERVER_SECRET) {
+    SERVER_SECRET = crypto.randomBytes(32).toString('hex');
+    try { fs.writeFileSync(SECRET_FILE, SERVER_SECRET, 'utf8'); } catch (_) {}
+  }
+}
+
+function signAdminToken(durationMs = 7 * 24 * 60 * 60 * 1000) {
+  const payload = {
+    role: 'admin',
+    exp: Date.now() + durationMs,
+    nonce: crypto.randomBytes(8).toString('hex')
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', SERVER_SECRET).update(payloadB64).digest('base64url');
+  return `${payloadB64}.${signature}`;
+}
+
+function verifyAdminToken(token) {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  if (parts.length !== 2) return false;
+  const [payloadB64, signature] = parts;
+
+  try {
+    const expectedSig = crypto.createHmac('sha256', SERVER_SECRET).update(payloadB64).digest('base64url');
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expectedSig);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      return false;
+    }
+
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    if (payload.role !== 'admin') return false;
+    if (typeof payload.exp !== 'number' || Date.now() > payload.exp) return false;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function extractBearerToken(req) {
+  const authHeader = req.headers['authorization'] || req.headers['x-admin-token'] || '';
+  if (authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+  return authHeader.trim();
+}
+
+function requireAdminAuth(req, res) {
+  const token = extractBearerToken(req);
+  if (!verifyAdminToken(token)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized: Valid Admin session token required.' }));
+    return false;
+  }
+  return true;
+}
+
+// In-Memory Rate Limiter for /api/admin/login
+const loginAttempts = new Map();
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (!record) return { allowed: true };
+
+  if (record.lockedUntil && now < record.lockedUntil) {
+    const waitMins = Math.ceil((record.lockedUntil - now) / 60000);
+    return { allowed: false, error: `Security Lockout: Too many failed attempts. Try again in ${waitMins} minute(s).` };
+  }
+
+  if (record.lockedUntil && now >= record.lockedUntil) {
+    loginAttempts.delete(ip);
+    return { allowed: true };
+  }
+
+  return { allowed: true };
+}
+
+function recordFailedLogin(ip) {
+  const now = Date.now();
+  const record = loginAttempts.get(ip) || { count: 0, firstAttempt: now };
+  record.count++;
+  if (record.count >= 5) {
+    record.lockedUntil = now + 15 * 60 * 1000;
+    console.warn(`[Security Alert] IP ${ip} locked out after 5 failed login attempts.`);
+  }
+  loginAttempts.set(ip, record);
+}
+
+function resetLoginAttempts(ip) {
+  loginAttempts.delete(ip);
 }
 
 // GitHub & Cloud Persistence Configuration
@@ -298,8 +454,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/products
+  // POST /api/products (ADMIN ONLY)
   if (pathname === '/api/products' && req.method === 'POST') {
+    if (!requireAdminAuth(req, res)) return;
     try {
       const payload = await parseJsonBody(req);
       const products = readJson(PRODUCTS_FILE, []);
@@ -337,8 +494,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // PUT /api/products/:id
+  // PUT /api/products/:id (ADMIN ONLY)
   if (pathname.startsWith('/api/products/') && req.method === 'PUT') {
+    if (!requireAdminAuth(req, res)) return;
     try {
       const targetId = pathname.replace('/api/products/', '');
       const payload = await parseJsonBody(req);
@@ -363,8 +521,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // DELETE /api/products/:id
+  // DELETE /api/products/:id (ADMIN ONLY)
   if (pathname.startsWith('/api/products/') && req.method === 'DELETE') {
+    if (!requireAdminAuth(req, res)) return;
     const targetId = pathname.replace('/api/products/', '');
     let products = readJson(PRODUCTS_FILE, []);
     const target = products.find(p => p.id === targetId);
@@ -385,8 +544,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/catalog/import (Full Catalog JSON Import & Permanent Sync)
+  // POST /api/catalog/import (ADMIN ONLY)
   if (pathname === '/api/catalog/import' && req.method === 'POST') {
+    if (!requireAdminAuth(req, res)) return;
     try {
       const payload = await parseJsonBody(req);
       const incoming = Array.isArray(payload) ? payload : (payload.products || []);
@@ -407,8 +567,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/cloud/sync (Manual Trigger for GitHub / Cloud Database Sync)
+  // POST /api/cloud/sync (ADMIN ONLY)
   if (pathname === '/api/cloud/sync' && req.method === 'POST') {
+    if (!requireAdminAuth(req, res)) return;
     try {
       const gitRes = await syncCatalogToGitHub();
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -420,22 +581,53 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/settings
+  // GET /api/settings (PUBLIC STOREFRONT SETTINGS - ZERO CREDENTIALS EXPOSED)
   if (pathname === '/api/settings' && req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(readJson(SETTINGS_FILE, {})));
+    const settings = readJson(SETTINGS_FILE, {});
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    });
+    // NEVER expose adminPin, adminPinHash, adminPinSalt, githubToken, or cloud secrets to public!
+    res.end(JSON.stringify({
+      whatsappNumber: settings.whatsappNumber || '917779012100',
+      instagramUrl: settings.instagramUrl || 'https://instagram.com/minimal_kicks'
+    }));
     return;
   }
 
-  // POST /api/settings
+  // GET /api/admin/settings (AUTHENTICATED ADMIN ONLY)
+  if (pathname === '/api/admin/settings' && req.method === 'GET') {
+    if (!requireAdminAuth(req, res)) return;
+    const settings = readJson(SETTINGS_FILE, {});
+    const hasToken = !!(process.env.GITHUB_TOKEN || settings.githubToken);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    });
+    res.end(JSON.stringify({
+      whatsappNumber: settings.whatsappNumber || '917779012100',
+      instagramUrl: settings.instagramUrl || 'https://instagram.com/minimal_kicks',
+      hasGithubToken: hasToken,
+      githubTokenMasked: hasToken ? '••••••••••••••••••••' : ''
+    }));
+    return;
+  }
+
+  // POST /api/settings (ADMIN ONLY)
   if (pathname === '/api/settings' && req.method === 'POST') {
+    if (!requireAdminAuth(req, res)) return;
     try {
       const payload = await parseJsonBody(req);
       const current = readJson(SETTINGS_FILE, {});
-      const updated = { ...current, ...payload };
-      writeJson(SETTINGS_FILE, updated);
+      if (payload.whatsappNumber !== undefined) current.whatsappNumber = String(payload.whatsappNumber).trim();
+      if (payload.instagramUrl !== undefined) current.instagramUrl = String(payload.instagramUrl).trim();
+      if (payload.githubToken !== undefined && String(payload.githubToken).trim() !== '') {
+        current.githubToken = String(payload.githubToken).trim();
+      }
+      writeJson(SETTINGS_FILE, current);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(updated));
+      res.end(JSON.stringify({ success: true }));
     } catch (err) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));
@@ -443,19 +635,31 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/admin/login
+  // POST /api/admin/login (RATE LIMITED & SALTED CRYPTOGRAPHIC VERIFICATION)
   if (pathname === '/api/admin/login' && req.method === 'POST') {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    const rateCheck = checkRateLimit(ip);
+    if (!rateCheck.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: rateCheck.error }));
+      return;
+    }
+
     try {
       const payload = await parseJsonBody(req);
-      const settings = readJson(SETTINGS_FILE, { adminPin: 'MinimalKicks@Admin' });
       const entered = String(payload.pin || '').trim();
-      const actual = String(settings.adminPin || 'MinimalKicks@Admin').trim();
-      if (entered && entered === actual) {
+      const settings = readJson(SETTINGS_FILE, {});
+      
+      const isValid = verifyPin(entered, settings.adminPinHash, settings.adminPinSalt);
+      if (isValid) {
+        resetLoginAttempts(ip);
+        const token = signAdminToken();
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true }));
+        res.end(JSON.stringify({ success: true, token }));
       } else {
+        recordFailedLogin(ip);
         res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: 'Incorrect PIN' }));
+        res.end(JSON.stringify({ success: false, error: 'Incorrect Admin PIN' }));
       }
     } catch (err) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -464,18 +668,31 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/admin/change-pin
+  // GET /api/admin/verify (VERIFY EXISTING ADMIN SESSION TOKEN)
+  if (pathname === '/api/admin/verify' && req.method === 'GET') {
+    const token = extractBearerToken(req);
+    const valid = verifyAdminToken(token);
+    res.writeHead(valid ? 200 : 401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ valid }));
+    return;
+  }
+
+  // POST /api/admin/change-pin (ADMIN ONLY - SALTED SHA-512)
   if (pathname === '/api/admin/change-pin' && req.method === 'POST') {
+    if (!requireAdminAuth(req, res)) return;
     try {
       const payload = await parseJsonBody(req);
       const newPin = String(payload.newPin || '').trim();
       if (!newPin || newPin.length < 4) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'PIN must be at least 4 characters' }));
+        res.end(JSON.stringify({ error: 'PIN must be at least 4 characters long' }));
         return;
       }
       const settings = readJson(SETTINGS_FILE, {});
-      settings.adminPin = newPin;
+      const { hash, salt } = hashPin(newPin);
+      settings.adminPinHash = hash;
+      settings.adminPinSalt = salt;
+      delete settings.adminPin; // Remove any plain text PIN forever
       writeJson(SETTINGS_FILE, settings);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true }));
@@ -493,8 +710,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/brands
+  // POST /api/brands (ADMIN ONLY)
   if (pathname === '/api/brands' && req.method === 'POST') {
+    if (!requireAdminAuth(req, res)) return;
     try {
       const payload = await parseJsonBody(req);
       const name = (payload.name || '').trim();
@@ -515,8 +733,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // DELETE /api/brands/:name
+  // DELETE /api/brands/:name (ADMIN ONLY)
   if (pathname.startsWith('/api/brands/') && req.method === 'DELETE') {
+    if (!requireAdminAuth(req, res)) return;
     const targetBrand = pathname.replace('/api/brands/', '').trim();
     let brands = readJson(BRANDS_FILE, DEFAULT_BRANDS);
     brands = brands.filter(b => b.toLowerCase() !== targetBrand.toLowerCase());
@@ -529,6 +748,23 @@ const server = http.createServer(async (req, res) => {
   // Static file serving
   let safePath = pathname === '/' ? '/index.html' : pathname;
   const filePath = path.join(ROOT_DIR, safePath);
+
+  // STRICT SECURITY FILTER: Block direct access to data/, .server_secret, .git, .env, or system json files
+  const normalizedPath = safePath.replace(/\\/g, '/').toLowerCase();
+  if (
+    normalizedPath.startsWith('/data/') ||
+    normalizedPath === '/data' ||
+    normalizedPath.includes('.server_secret') ||
+    normalizedPath.includes('/.') ||
+    (normalizedPath.endsWith('.json') && !normalizedPath.endsWith('manifest.json')) ||
+    normalizedPath.endsWith('.env') ||
+    normalizedPath.endsWith('.sql') ||
+    normalizedPath.endsWith('.log')
+  ) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden: Direct access to system data files is protected.');
+    return;
+  }
 
   if (!filePath.startsWith(ROOT_DIR)) {
     res.writeHead(403);

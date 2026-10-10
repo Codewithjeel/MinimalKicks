@@ -22,8 +22,8 @@ const state = {
   hoverTimers: {},
   touchStartX: {},
   orderBag: JSON.parse(localStorage.getItem('mk_whatsapp_bag') || '[]'),
-  isAdmin: sessionStorage.getItem('mk_admin_unlocked') === 'true' || localStorage.getItem('mk_admin_unlocked') === 'true',
-  adminPin: localStorage.getItem('mk_admin_pin') || 'MinimalKicks@Admin',
+  isAdmin: false,
+  adminToken: sessionStorage.getItem('mk_admin_token') || localStorage.getItem('mk_admin_token') || null,
   whatsappNumber: localStorage.getItem('mk_whatsapp_number') || '917779012100',
   instagramUrl: localStorage.getItem('mk_instagram_url') || 'https://instagram.com/minimal_kicks',
   stagedUploadImages: [],
@@ -33,10 +33,37 @@ const state = {
   stagedSizes: ['UK 7', 'UK 8', 'UK 9', 'UK 10', 'UK 11']
 };
 
+// Global helper for API requests
+window.getAdminToken = () => state.adminToken || sessionStorage.getItem('mk_admin_token') || localStorage.getItem('mk_admin_token') || '';
+
 /* =========================================================
    INITIALIZATION
    ========================================================= */
 document.addEventListener('DOMContentLoaded', async () => {
+  // Security Cleanup: permanently purge any old plain text PIN from browser storage
+  localStorage.removeItem('mk_admin_pin');
+
+  // Verify existing admin session token with server
+  const storedToken = window.getAdminToken();
+  if (storedToken && window.location.protocol.startsWith('http')) {
+    try {
+      const vRes = await fetch('/api/admin/verify', {
+        headers: { 'Authorization': `Bearer ${storedToken}` }
+      });
+      if (vRes.ok) {
+        state.isAdmin = true;
+        state.adminToken = storedToken;
+      } else {
+        sessionStorage.removeItem('mk_admin_token');
+        localStorage.removeItem('mk_admin_token');
+        sessionStorage.removeItem('mk_admin_unlocked');
+        localStorage.removeItem('mk_admin_unlocked');
+        state.isAdmin = false;
+        state.adminToken = null;
+      }
+    } catch (_) {}
+  }
+
   await loadStoreSettings();
   await loadBrands();
   await refreshInventory();
@@ -71,10 +98,6 @@ async function loadStoreSettings() {
         if (data.instagramUrl) {
           state.instagramUrl = data.instagramUrl;
           localStorage.setItem('mk_instagram_url', data.instagramUrl);
-        }
-        if (data.adminPin) {
-          state.adminPin = data.adminPin;
-          localStorage.setItem('mk_admin_pin', data.adminPin);
         }
       }
     } catch (_) {}
@@ -1261,9 +1284,8 @@ async function handleAdminLogin() {
     return;
   }
 
-  const activePin = localStorage.getItem('mk_admin_pin') || state.adminPin || 'MinimalKicks@Admin';
-
   let success = false;
+  let serverMessage = 'Incorrect Admin PIN. Please try again.';
 
   if (window.location.protocol.startsWith('http')) {
     try {
@@ -1272,42 +1294,48 @@ async function handleAdminLogin() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: enteredPin })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) success = true;
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && data.token) {
+        success = true;
+        state.isAdmin = true;
+        state.adminToken = data.token;
+        sessionStorage.setItem('mk_admin_token', data.token);
+        localStorage.setItem('mk_admin_token', data.token);
+        sessionStorage.setItem('mk_admin_unlocked', 'true');
+        localStorage.setItem('mk_admin_unlocked', 'true');
+        localStorage.removeItem('mk_admin_pin'); // Purge any plain text PIN
+      } else {
+        serverMessage = data.error || serverMessage;
       }
-    } catch (_) {}
-  }
-
-  if (!success && enteredPin === activePin) {
-    success = true;
+    } catch (err) {
+      serverMessage = 'Connection error: ' + err.message;
+    }
   }
 
   if (success) {
-    state.isAdmin = true;
-    state.adminPin = enteredPin;
-    sessionStorage.setItem('mk_admin_unlocked', 'true');
-    localStorage.setItem('mk_admin_unlocked', 'true');
-    localStorage.setItem('mk_admin_pin', enteredPin);
     closeAdminLoginModal();
     updateAdminUI();
     renderProductGrid();
-    showToast('Admin Mode unlocked successfully! ✓', 'success');
+    showToast('Admin Mode unlocked securely! ✓', 'success');
   } else {
     if (errBox) {
-      errBox.textContent = 'Incorrect Admin PIN. Please try again.';
+      errBox.textContent = serverMessage;
       errBox.classList.remove('hidden');
       errBox.style.display = 'block';
     } else {
-      showToast('Incorrect Admin PIN. Please try again.', 'error');
+      showToast(serverMessage, 'error');
     }
   }
 }
 
 function handleAdminLogout() {
   state.isAdmin = false;
+  state.adminToken = null;
+  sessionStorage.removeItem('mk_admin_token');
+  localStorage.removeItem('mk_admin_token');
   sessionStorage.removeItem('mk_admin_unlocked');
   localStorage.removeItem('mk_admin_unlocked');
+  localStorage.removeItem('mk_admin_pin');
   updateAdminUI();
   renderProductGrid();
   showToast('Logged out of Admin Mode. Customer view active.', 'success');
@@ -1685,9 +1713,13 @@ async function handleCatalogImport(e) {
         return;
       }
 
+      const token = window.getAdminToken();
       const res = await fetch('/api/catalog/import', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(items)
       });
 
@@ -1777,11 +1809,17 @@ async function openSettingsModal() {
   
   if (window.location.protocol.startsWith('http')) {
     try {
-      const res = await fetch('/api/settings');
+      const token = window.getAdminToken();
+      const res = await fetch('/api/admin/settings', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       if (res.ok) {
         const s = await res.json();
         const ghInput = document.getElementById('settingsGithubToken');
-        if (ghInput && s.githubToken) ghInput.value = s.githubToken;
+        if (ghInput) {
+          ghInput.value = '';
+          ghInput.placeholder = s.hasGithubToken ? '•••••••••••••••••••• (Configured & Saved)' : 'ghp_xxxxxxxxxxxxxxxxxxxx';
+        }
       }
     } catch (_) {}
   }
@@ -1803,15 +1841,29 @@ async function handleSaveSettings() {
   const ig = (document.getElementById('settingsInstagram')?.value || '').trim();
   const ghToken = (document.getElementById('settingsGithubToken')?.value || '').trim();
 
-  const payload = { whatsappNumber: wa, instagramUrl: ig, githubToken: ghToken };
+  const payload = { whatsappNumber: wa, instagramUrl: ig };
+  if (ghToken) payload.githubToken = ghToken;
+
   if (window.location.protocol.startsWith('http')) {
     try {
-      await fetch('/api/settings', {
+      const token = window.getAdminToken();
+      const res = await fetch('/api/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(payload)
       });
-    } catch (_) {}
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Failed to save settings', 'error');
+        return;
+      }
+    } catch (e) {
+      showToast('Error saving settings: ' + e.message, 'error');
+      return;
+    }
   }
 
   state.whatsappNumber = wa;
@@ -1820,15 +1872,19 @@ async function handleSaveSettings() {
   localStorage.setItem('mk_instagram_url', ig);
   updateStorefrontLinks();
   closeSettingsModal();
-  showToast('Store settings saved successfully ✓', 'success');
+  showToast('Store settings saved securely ✓', 'success');
 }
 
 async function triggerManualSync() {
   showToast('Connecting to GitHub & syncing catalog...', 'info');
   try {
-    const res = await fetch('/api/cloud/sync', { method: 'POST' });
+    const token = window.getAdminToken();
+    const res = await fetch('/api/cloud/sync', {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
     const data = await res.json();
-    if (data.success) {
+    if (res.ok && data.success) {
       showToast('Catalog committed to GitHub successfully! ✓', 'success');
     } else {
       showToast(data.reason || data.error || 'Sync failed. Please check token.', 'error');
@@ -1847,18 +1903,27 @@ async function handleChangePin() {
 
   if (window.location.protocol.startsWith('http')) {
     try {
-      await fetch('/api/admin/change-pin', {
+      const token = window.getAdminToken();
+      const res = await fetch('/api/admin/change-pin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ newPin })
       });
-    } catch (_) {}
+      if (res.ok) {
+        localStorage.removeItem('mk_admin_pin'); // Ensure no plain text PIN is ever stored
+        showToast('Admin PIN updated and securely hashed! ✓', 'success');
+        if (document.getElementById('newPinInput')) document.getElementById('newPinInput').value = '';
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Failed to update PIN', 'error');
+      }
+    } catch (e) {
+      showToast('Error updating PIN: ' + e.message, 'error');
+    }
   }
-
-  state.adminPin = newPin;
-  localStorage.setItem('mk_admin_pin', newPin);
-  showToast('Admin PIN updated successfully ✓', 'success');
-  if (document.getElementById('newPinInput')) document.getElementById('newPinInput').value = '';
 }
 
 /* =========================================================

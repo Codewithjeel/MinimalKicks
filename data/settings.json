@@ -1,5 +1,6 @@
 {
   "whatsappNumber": "917779012100",
   "instagramUrl": "https://instagram.com/minimal_kicks",
-  "adminPin": "MinimalKicks@Admin"
+  "adminPinHash": "981928c67b53914a9916d484e9b11f31df1342ebcc6b55ee2b2e1a5f29c8c7e2c15c86ddaa7290ddd82f568dde72b45b984630eb93c3a91362958a05e64f89e5",
+  "adminPinSalt": "71f0eaecdaa1f7e189fdf6028d08f043"
 }

@@ -40,6 +40,15 @@ const STANDARD_SIZES = [
   { uk: "UK 12", eu: "EU 46", cm: "30.5 cm" }
 ];
 
+function getAuthHeaders() {
+  const token = (typeof window.getAdminToken === 'function' ? window.getAdminToken() : '') ||
+                sessionStorage.getItem('mk_admin_token') ||
+                localStorage.getItem('mk_admin_token') || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
 /**
  * Dynamic Brands API (Server + LocalStorage Sync)
  */
@@ -72,7 +81,7 @@ const BrandsAPI = {
     try {
       const res = await fetch('/api/brands', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ name: clean })
       });
       if (res.ok) {
@@ -93,7 +102,10 @@ const BrandsAPI = {
   async remove(brandName) {
     const clean = (brandName || '').trim();
     try {
-      const res = await fetch(`/api/brands/${encodeURIComponent(clean)}`, { method: 'DELETE' });
+      const res = await fetch(`/api/brands/${encodeURIComponent(clean)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
       if (res.ok) {
         const updated = await res.json();
         localStorage.setItem('mk_brands', JSON.stringify(updated));
@@ -261,7 +273,7 @@ const InventoryAPI = {
     try {
       const res = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newProduct)
       });
       if (res.ok) {
@@ -290,7 +302,7 @@ const InventoryAPI = {
     try {
       const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(productData)
       });
       if (res.ok) {
@@ -314,7 +326,10 @@ const InventoryAPI = {
 
   async remove(id) {
     try {
-      await fetch(`/api/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await fetch(`/api/products/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
     } catch (_) {}
     await idbDelete(id);
     return true;
